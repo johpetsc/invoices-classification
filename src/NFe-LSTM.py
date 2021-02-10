@@ -5,29 +5,25 @@ import numpy as np
 import re
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Activation
-from tensorflow.keras.layers import LSTM
+from tensorflow.keras.layers import Dense, Dropout, Activation, LSTM, Embedding, Bidirectional
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras import layers
-from tensorflow.keras import losses
-from tensorflow.keras import preprocessing
+from tensorflow.keras import layers, losses, preprocessing
 from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
 import tensorflow_text as tf_text
 
-BUFFER_SIZE = 10000
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 VOCAB_SIZE = 10000
 
 def generate_data():
     data = pd.read_excel('../database/BaseTrabIA1.xlsx')
     df = pd.DataFrame(columns=['Text', 'Label'])
-    data = data[(data['NCM'] == 33049910) | (data['NCM'] == 33072010)]
+    data = data[(data['NCM'] == 33051000) | (data['NCM'] == 33049990)]
     df['Text']  = data['DESCRIÇÃO (NFe)']
-    df['Label'] = data['NCM'].replace({33049910: 0, 33072010: 1})
+    df['Label'] = data['NCM'].replace({33051000: 0, 33049990: 1})
     df['Text'] = df['Text'].str.lower().replace('\W',' ', regex=True)
     train = pd.DataFrame(columns=['Text', 'Label'])
     test = pd.DataFrame(columns=['Text', 'Label'])
-    train['Text'], test['Text'], train['Label'], test['Label'] = train_test_split(df['Text'], df['Label'], random_state=42, shuffle=True, test_size=0.3)
+    train['Text'], test['Text'], train['Label'], test['Label'] = train_test_split(df['Text'], df['Label'], random_state=42, shuffle=True, test_size=0.2)
     train_dataset = tf.data.Dataset.from_tensor_slices((train['Text'].values, train['Label'].values))
     test_dataset = tf.data.Dataset.from_tensor_slices((test['Text'].values, test['Label'].values))
     """for text, label in train_dataset.take(10):
@@ -47,17 +43,17 @@ def plot_graphs(history, metric):
 
 
 def LSTM_model(train_dataset, test_dataset, encoder):
-    model = tf.keras.Sequential([
-    encoder,
-    tf.keras.layers.Embedding(len(encoder.get_vocabulary()), 64, mask_zero=True),
-    tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64,  return_sequences=True)),
-    tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(32)),
-    tf.keras.layers.Dense(64, activation='linear'),
-    tf.keras.layers.Dropout(0.5),
-    tf.keras.layers.Dense(1)])
+    model = Sequential([
+            encoder,
+            Embedding(len(encoder.get_vocabulary()), 64, mask_zero=True),
+            Bidirectional(LSTM(64,  return_sequences=True)),
+            Bidirectional(LSTM(32)),
+            Dense(64, activation='relu'),
+            Dropout(0.5),
+            Dense(1)])
 
 
-    model.compile(loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
+    model.compile(loss=losses.BinaryCrossentropy(from_logits=True),
               optimizer='adam',
               metrics=['accuracy'])
     history = model.fit(train_dataset, epochs=3,
@@ -74,9 +70,9 @@ def LSTM_model(train_dataset, test_dataset, encoder):
 
 def main():
     train_dataset, test_dataset = generate_data()
-    train_dataset = train_dataset.shuffle(BUFFER_SIZE).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+    train_dataset = train_dataset.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
     test_dataset = test_dataset.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-    encoder = tf.keras.layers.experimental.preprocessing.TextVectorization(max_tokens=VOCAB_SIZE)
+    encoder = TextVectorization(max_tokens=VOCAB_SIZE)
     encoder.adapt(train_dataset.map(lambda text, label: text))
     vocab = np.array(encoder.get_vocabulary())
     #print(vocab[:20])
