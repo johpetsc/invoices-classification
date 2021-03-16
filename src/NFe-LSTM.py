@@ -5,21 +5,22 @@ import numpy as np
 import re
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Activation, LSTM, Embedding, Bidirectional
+from tensorflow.keras.layers import Dense, Dropout, Activation, LSTM, Embedding, Bidirectional, Activation
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import layers, losses, preprocessing
 from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
 import tensorflow_text as tf_text
+from attention import Attention
 
-BATCH_SIZE = 32
+BATCH_SIZE = 128
 VOCAB_SIZE = 10000
 
 def generate_data():
-    data = pd.read_excel('../database/BaseTrabIA1.xlsx')
+    data = pd.read_excel('../dataset/BaseTrabIA1.xlsx')
     df = pd.DataFrame(columns=['Text', 'Label'])
-    data = data[(data['NCM'] == 33051000) | (data['NCM'] == 33049990)]
+    data = data[(data['NCM'] == 33049910) | (data['NCM'] == 33072010)]
     df['Text']  = data['DESCRIÇÃO (NFe)']
-    df['Label'] = data['NCM'].replace({33051000: 0, 33049990: 1})
+    df['Label'] = data['NCM'].replace({33049910: 0, 33072010: 1)
     df['Text'] = df['Text'].str.lower().replace('\W',' ', regex=True)
     train = pd.DataFrame(columns=['Text', 'Label'])
     test = pd.DataFrame(columns=['Text', 'Label'])
@@ -46,27 +47,30 @@ def LSTM_model(train_dataset, test_dataset, encoder):
     model = Sequential([
             encoder,
             Embedding(len(encoder.get_vocabulary()), 64, mask_zero=True),
-            Bidirectional(LSTM(64,  return_sequences=True)),
-            Bidirectional(LSTM(32)),
+            Bidirectional(LSTM(64, return_sequences=True)),
+            Bidirectional(LSTM(64, return_sequences=True)),
+            Attention(name='attention_weight'),
             Dense(64, activation='relu'),
             Dropout(0.5),
-            Dense(1)])
-
-
+            Dense(1])
+    
     model.compile(loss=losses.BinaryCrossentropy(from_logits=True),
               optimizer='adam',
               metrics=['accuracy'])
+
     history = model.fit(train_dataset, epochs=3,
                     validation_data=test_dataset, 
                     validation_steps=30)
-    test_loss, test_acc = model.evaluate(test_dataset)
 
+    test_loss, test_acc = model.evaluate(test_dataset)
     print('Test Loss: {}'.format(test_loss))
     print('Test Accuracy: {}'.format(test_acc))
 
     plt.figure(figsize=(16,8))
     plot_graphs(history, 'accuracy')
     plot_graphs(history, 'loss')
+
+    return test_acc
 
 def main():
     train_dataset, test_dataset = generate_data()
@@ -76,6 +80,7 @@ def main():
     encoder.adapt(train_dataset.map(lambda text, label: text))
     vocab = np.array(encoder.get_vocabulary())
     #print(vocab[:20])
+
     LSTM_model(train_dataset, test_dataset, encoder)
 
 if __name__ == '__main__':
