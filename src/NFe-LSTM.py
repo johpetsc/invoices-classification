@@ -1,11 +1,12 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import numpy as np
 import re
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Activation, LSTM, Embedding, Bidirectional, Activation
+from tensorflow.keras.layers import Dense, Dropout, Activation, LSTM, Embedding, Bidirectional
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import layers, losses, preprocessing
 from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
@@ -18,9 +19,27 @@ VOCAB_SIZE = 10000
 def generate_data():
     data = pd.read_excel('../dataset/BaseTrabIA1.xlsx')
     df = pd.DataFrame(columns=['Text', 'Label'])
-    data = data[(data['NCM'] == 33049910) | (data['NCM'] == 33072010)]
+    data = data[(
+        data['NCM'] == 33049910) | #Cremes de beleza, cremes nutritivos e loções tônicas
+        (data['NCM'] == 33072010) | #Desodorantes corporais e antiperspirantes, líquidos
+        (data['NCM'] == 33049990) | #Outros produtos de beleza ou de maquilagem preparados e preparações para conservação ou cuidados da pele
+        (data['NCM'] == 33051000) | #Xampus para o cabelo
+        (data['NCM'] == 33041000) | #Produtos de maquilagem para os lábios
+        (data['NCM'] == 33030020) | #Águas-de-colônia
+        (data['NCM'] == 33042010) | #Sombra, delineador, lápis para sobrancelhas e rímel
+        (data['NCM'] == 34011190) | #Sabões de toucador em barras, pedaços ou figuras moldados
+        (data['NCM'] == 33043000)] #Preparações para manicuros e pedicuros
     df['Text']  = data['DESCRIÇÃO (NFe)']
-    df['Label'] = data['NCM'].replace({33049910: 0, 33072010: 1)
+    df['Label'] = data['NCM'].replace({
+        33049910: 0, 
+        33072010: 1, 
+        33049990: 2, 
+        33051000: 3,
+        33041000: 4,
+        33030020: 5,
+        33042010: 6,
+        34011190: 7,
+        33043000: 8})
     df['Text'] = df['Text'].str.lower().replace('\W',' ', regex=True)
     train = pd.DataFrame(columns=['Text', 'Label'])
     test = pd.DataFrame(columns=['Text', 'Label'])
@@ -52,13 +71,13 @@ def LSTM_model(train_dataset, test_dataset, encoder):
             Attention(name='attention_weight'),
             Dense(64, activation='relu'),
             Dropout(0.5),
-            Dense(1])
+            Dense(9, activation='softmax')])
     
-    model.compile(loss=losses.BinaryCrossentropy(from_logits=True),
+    model.compile(loss='sparse_categorical_crossentropy',
               optimizer='adam',
               metrics=['accuracy'])
-
-    history = model.fit(train_dataset, epochs=3,
+    
+    history = model.fit(train_dataset, epochs=6,
                     validation_data=test_dataset, 
                     validation_steps=30)
 
@@ -69,8 +88,19 @@ def LSTM_model(train_dataset, test_dataset, encoder):
     plt.figure(figsize=(16,8))
     plot_graphs(history, 'accuracy')
     plot_graphs(history, 'loss')
+    y_pred = model.predict(test_dataset)
+    predicted_categories = tf.argmax(y_pred, axis=1)
 
-    return test_acc
+    true_categories = tf.concat([y for x, y in test_dataset], axis=0)
+
+    cm = confusion_matrix(predicted_categories, true_categories)
+    plt.matshow(cm)
+    plt.ylabel('Predicted')
+    plt.xlabel('Actual')
+    plt.title('BiLSTM CONFUSION MATRIX')
+    plt.suptitle(test_acc)
+    plt.colorbar()
+    plt.show()
 
 def main():
     train_dataset, test_dataset = generate_data()
@@ -80,7 +110,7 @@ def main():
     encoder.adapt(train_dataset.map(lambda text, label: text))
     vocab = np.array(encoder.get_vocabulary())
     #print(vocab[:20])
-
+    
     LSTM_model(train_dataset, test_dataset, encoder)
 
 if __name__ == '__main__':
