@@ -6,14 +6,15 @@ import numpy as np
 import re
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Activation, LSTM, Embedding, Bidirectional
+from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, Conv1D, MaxPooling1D, Embedding, Dense, Dropout, Activation, LSTM, Embedding, Bidirectional
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import layers, losses, preprocessing
 from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
 import tensorflow_text as tf_text
 from attention import Attention
+import seaborn as sns
 
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 VOCAB_SIZE = 10000
 
 def generate_data():
@@ -62,26 +63,75 @@ def plot_graphs(history, metric):
     plt.show()
 
 
-def LSTM_model(train_dataset, test_dataset, encoder):
-    model = Sequential([
-            encoder,
-            Embedding(len(encoder.get_vocabulary()), 64, mask_zero=True),
-            Bidirectional(LSTM(64, return_sequences=True)),
-            Bidirectional(LSTM(64, return_sequences=True)),
-            Attention(name='attention_weight'),
-            Dense(64, activation='relu'),
-            Dropout(0.5),
-            Dense(9, activation='softmax')])
-    
-    model.compile(loss='sparse_categorical_crossentropy',
-              optimizer='adam',
-              metrics=['accuracy'])
-    
-    history = model.fit(train_dataset, epochs=6,
-                    validation_data=test_dataset, 
-                    validation_steps=30)
+def CNN_model(train_dataset, test_dataset, encoder):
+    cnn = pd.DataFrame(columns=['CNN'])
+    for x in range(10):
+        model = Sequential([
+                encoder,
+                Embedding(len(encoder.get_vocabulary()), 128, mask_zero=True),
+                Conv1D(64, 3, activation='relu'),
+                Conv1D(32, 3),
+                MaxPooling1D(pool_size=2),
+                Attention(name='attention_weight'),
+                Dense(64, activation='relu'),
+                Dropout(0.5),
+                Dense(9, activation='softmax')])
 
-    test_loss, test_acc = model.evaluate(test_dataset)
+        model.compile(loss='sparse_categorical_crossentropy',
+                optimizer='adam',
+                metrics=['accuracy'])
+        
+        history = model.fit(train_dataset, epochs=5,
+                        validation_data=test_dataset, 
+                        validation_steps=30)
+        #model.summary()
+        test_loss, test_acc = model.evaluate(test_dataset)
+        cnn.loc[x] = [test_acc]
+
+    print('Test Loss: {}'.format(test_loss))
+    print('Test Accuracy: {}'.format(test_acc))
+
+    plt.figure(figsize=(16,8))
+    plot_graphs(history, 'accuracy')
+    plot_graphs(history, 'loss')
+    y_pred = model.predict(test_dataset)
+    predicted_categories = tf.argmax(y_pred, axis=1)
+
+    true_categories = tf.concat([y for x, y in test_dataset], axis=0)
+
+    cm = confusion_matrix(predicted_categories, true_categories)
+    plt.matshow(cm)
+    plt.ylabel('Predicted')
+    plt.xlabel('Actual')
+    plt.title('CNN CONFUSION MATRIX')
+    plt.suptitle(test_acc)
+    plt.colorbar()
+    plt.show()
+
+    return cnn['CNN']
+
+def LSTM_model(train_dataset, test_dataset, encoder):
+    lstm = pd.DataFrame(columns=['LSTM'])
+    for x in range(10):
+        model = Sequential([
+                encoder,
+                Embedding(len(encoder.get_vocabulary()), 64, mask_zero=True),
+                Bidirectional(LSTM(64, return_sequences=True)),
+                Bidirectional(LSTM(64, return_sequences=True)),
+                Attention(name='attention_weight'),
+                Dense(64, activation='relu'),
+                Dropout(0.5),
+                Dense(9, activation='softmax')])
+        
+        model.compile(loss='sparse_categorical_crossentropy',
+                optimizer='adam',
+                metrics=['accuracy'])
+        history = model.fit(train_dataset, epochs=5,
+                        validation_data=test_dataset, 
+                        validation_steps=30)
+        test_loss, test_acc = model.evaluate(test_dataset)
+        lstm.loc[x] = [test_acc]
+
     print('Test Loss: {}'.format(test_loss))
     print('Test Accuracy: {}'.format(test_acc))
 
@@ -102,6 +152,8 @@ def LSTM_model(train_dataset, test_dataset, encoder):
     plt.colorbar()
     plt.show()
 
+    return lstm['LSTM']
+
 def main():
     train_dataset, test_dataset = generate_data()
     train_dataset = train_dataset.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
@@ -110,8 +162,13 @@ def main():
     encoder.adapt(train_dataset.map(lambda text, label: text))
     vocab = np.array(encoder.get_vocabulary())
     #print(vocab[:20])
-    
-    LSTM_model(train_dataset, test_dataset, encoder)
+    res = pd.DataFrame(columns=['CNN', 'BiLSTM'])
+    res['CNN'] = CNN_model(train_dataset, test_dataset, encoder)
+    res['BiLSTM'] = LSTM_model(train_dataset, test_dataset, encoder)
+
+    sns.set_theme(style="whitegrid")
+    boxplot = sns.boxplot(data = res)
+    plt.show()
 
 if __name__ == '__main__':
     main()

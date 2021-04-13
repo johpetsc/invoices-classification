@@ -9,20 +9,20 @@ import numpy as np
 import re
 
 def generate_data():
-    data = pd.read_excel('../dataset/BaseTrabIA1.xlsx')
+    data = pd.read_excel('../dataset/dataset.xlsx')
     df = pd.DataFrame(columns=['Text', 'Label'])
     data = data[(
-        data['NCM'] == 33049910) | #Cremes de beleza, cremes nutritivos e loções tônicas
-        (data['NCM'] == 33072010) | #Desodorantes corporais e antiperspirantes, líquidos
-        (data['NCM'] == 33049990) | #Outros produtos de beleza ou de maquilagem preparados e preparações para conservação ou cuidados da pele
-        (data['NCM'] == 33051000) | #Xampus para o cabelo
-        (data['NCM'] == 33041000) | #Produtos de maquilagem para os lábios
-        (data['NCM'] == 33030020) | #Águas-de-colônia
-        (data['NCM'] == 33042010) | #Sombra, delineador, lápis para sobrancelhas e rímel
-        (data['NCM'] == 34011190) | #Sabões de toucador em barras, pedaços ou figuras moldados
-        (data['NCM'] == 33043000)] #Preparações para manicuros e pedicuros
-    df['Text']  = data['DESCRIÇÃO (NFe)']
-    df['Label'] = data['NCM']
+        data['prod_ncm'] == 30049099) | #Cremes de beleza, cremes nutritivos e loções tônicas
+        (data['prod_ncm'] == 30049069) | #Desodorantes corporais e antiperspirantes, líquidos
+        (data['prod_ncm'] == 27101259) | #Outros produtos de beleza ou de maquilagem preparados e preparações para conservação ou cuidados da pele
+        (data['prod_ncm'] == 27101921) | #Xampus para o cabelo
+        (data['prod_ncm'] == 30049079) | #Produtos de maquilagem para os lábios
+        (data['prod_ncm'] == 87089990) | #Águas-de-colônia
+        (data['prod_ncm'] == 90211020) | #Sombra, delineador, lápis para sobrancelhas e rímel
+        (data['prod_ncm'] == 39174090) | #Sabões de toucador em barras, pedaços ou figuras moldados
+        (data['prod_ncm'] == 28044000)]  #Preparações para manicuros e pedicuros
+    df['Text']  = data['prod_desc']
+    df['Label'] = data['prod_ncm']
     df['Text'] = df['Text'].str.lower()
     df['Text'] = df['Text'].replace('\W',' ', regex=True)
     print(df)
