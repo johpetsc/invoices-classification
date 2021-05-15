@@ -1,2 +1,2 @@
 # text-classification
-Short Text Classification
+Twitter Sentiment Analysis
