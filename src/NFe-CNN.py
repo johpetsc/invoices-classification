@@ -3,47 +3,27 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import numpy as np
-import re
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, Conv1D, MaxPooling1D, Embedding
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras import layers, losses, preprocessing
 from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
-import tensorflow_text as tf_text
 from attention import Attention
+import seaborn as sns
 
-BATCH_SIZE = 128
-VOCAB_SIZE = 10000
+BATCH_SIZE = 1024
+VOCAB_SIZE = 30000
 
 def generate_data():
-    data = pd.read_excel('../dataset/dataset.xlsx')
+    data = pd.read_csv('../dataset/datasetCE.csv', encoding="ISO-8859-1" , names=["target", "ids", "date", "flag", "user", "text"])
     df = pd.DataFrame(columns=['Text', 'Label'])
-    data = data[(
-        data['prod_ncm'] == 30049099) | #Cremes de beleza, cremes nutritivos e loções tônicas
-        (data['prod_ncm'] == 30049069) | #Desodorantes corporais e antiperspirantes, líquidos
-        (data['prod_ncm'] == 27101259) | #Outros produtos de beleza ou de maquilagem preparados e preparações para conservação ou cuidados da pele
-        (data['prod_ncm'] == 27101921) | #Xampus para o cabelo
-        (data['prod_ncm'] == 30049079) | #Produtos de maquilagem para os lábios
-        (data['prod_ncm'] == 87089990) | #Águas-de-colônia
-        (data['prod_ncm'] == 90211020) | #Sombra, delineador, lápis para sobrancelhas e rímel
-        (data['prod_ncm'] == 39174090) | #Sabões de toucador em barras, pedaços ou figuras moldados
-        (data['prod_ncm'] == 28044000)] #Preparações para manicuros e pedicuros
-    df['Text']  = data['prod_desc']
-    df['Label'] = data['prod_ncm'].replace({
-        30049099: 0, 
-        30049069: 1, 
-        27101259: 2, 
-        27101921: 3,
-        30049079: 4,
-        87089990: 5,
-        90211020: 6,
-        39174090: 7,
-        28044000: 8})
+    df['Label'] = data['target'].replace({
+        0: 0, 
+        4: 1})
+    df['Text'] = data['text']
     df['Text'] = df['Text'].str.lower().replace('\W',' ', regex=True)
     train = pd.DataFrame(columns=['Text', 'Label'])
     test = pd.DataFrame(columns=['Text', 'Label'])
-    train['Text'], test['Text'], train['Label'], test['Label'] = train_test_split(df['Text'], df['Label'], random_state=42, shuffle=True, test_size=0.2)
+    train['Text'], test['Text'], train['Label'], test['Label'] = train_test_split(df['Text'], df['Label'], random_state=42, shuffle=True, test_size=0.4)
     train_dataset = tf.data.Dataset.from_tensor_slices((train['Text'].values, train['Label'].values))
     test_dataset = tf.data.Dataset.from_tensor_slices((test['Text'].values, test['Label'].values))
     """for text, label in train_dataset.take(10):
@@ -65,20 +45,26 @@ def plot_graphs(history, metric):
 def CNN_model(train_dataset, test_dataset, encoder):
     model = Sequential([
             encoder,
-            Embedding(len(encoder.get_vocabulary()), 128, mask_zero=True),
-            Conv1D(64, 3, activation='relu'),
-            Conv1D(32, 3),
-            MaxPooling1D(pool_size=2),
-            Attention(name='attention_weight'),
-            Dense(64, activation='relu'),
+            Embedding(len(encoder.get_vocabulary()), 64, mask_zero=True),
+            Conv1D(32, 3, activation='relu'),
             Dropout(0.5),
-            Dense(9, activation='softmax')])
+            MaxPooling1D(pool_size=2),
+            Dropout(0.5),
+            Dense(32, activation='relu'),
+            Dropout(0.5),
+            Attention(name='attention_weight'),
+            Dropout(0.5),
+            Dense(32, activation='relu'),
+            Dropout(0.5),
+            Dense(32, activation='relu'),
+            Dropout(0.5),
+            Dense(2, activation='softmax')])
 
     model.compile(loss='sparse_categorical_crossentropy',
               optimizer='adam',
               metrics=['accuracy'])
 
-    history = model.fit(train_dataset, epochs=10,
+    history = model.fit(train_dataset, epochs=5,
                     validation_data=test_dataset, 
                     validation_steps=30)
     model.summary()
@@ -96,12 +82,12 @@ def CNN_model(train_dataset, test_dataset, encoder):
     true_categories = tf.concat([y for x, y in test_dataset], axis=0)
 
     cm = confusion_matrix(predicted_categories, true_categories)
-    plt.matshow(cm)
+    cm = sns.heatmap(cm, annot=True)
+    #plt.matshow(cm)
     plt.ylabel('Predicted')
     plt.xlabel('Actual')
     plt.title('CNN CONFUSION MATRIX')
     plt.suptitle(test_acc)
-    plt.colorbar()
     plt.show()
 
 def main():
