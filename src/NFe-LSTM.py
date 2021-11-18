@@ -19,8 +19,9 @@ VOCAB_SIZE = 10000
 def generate_data():
     data = pd.read_excel('../dataset/dataset.xlsx')
     df = pd.DataFrame(columns=['Text', 'Label'])
+    # filters the NCM of 9 specific types of products
     data = data[(
-        data['prod_ncm'] == 30049099) | #Cremes de beleza, cremes nutritivos e loções tônicas
+         data['prod_ncm'] == 30049099) | #Cremes de beleza, cremes nutritivos e loções tônicas
         (data['prod_ncm'] == 30049069) | #Desodorantes corporais e antiperspirantes, líquidos
         (data['prod_ncm'] == 27101259) | #Outros produtos de beleza ou de maquilagem preparados e preparações para conservação ou cuidados da pele
         (data['prod_ncm'] == 27101921) | #Xampus para o cabelo
@@ -28,8 +29,9 @@ def generate_data():
         (data['prod_ncm'] == 87089990) | #Águas-de-colônia
         (data['prod_ncm'] == 90211020) | #Sombra, delineador, lápis para sobrancelhas e rímel
         (data['prod_ncm'] == 39174090) | #Sabões de toucador em barras, pedaços ou figuras moldados
-        (data['prod_ncm'] == 28044000)] #Preparações para manicuros e pedicuros
+        (data['prod_ncm'] == 28044000) ] #Preparações para manicuros e pedicuros
     df['Text']  = data['prod_desc']
+    # replaces the NCM code for a label
     df['Label'] = data['prod_ncm'].replace({
         30049099: 0, 
         30049069: 1, 
@@ -40,7 +42,9 @@ def generate_data():
         90211020: 6,
         39174090: 7,
         28044000: 8})
+    # data cleaning 
     df['Text'] = df['Text'].str.lower().replace('\W',' ', regex=True)
+    # splits the data for text and training
     train = pd.DataFrame(columns=['Text', 'Label'])
     test = pd.DataFrame(columns=['Text', 'Label'])
     train['Text'], test['Text'], train['Label'], test['Label'] = train_test_split(df['Text'], df['Label'], random_state=42, shuffle=True, test_size=0.2)
@@ -63,6 +67,7 @@ def plot_graphs(history, metric):
 
 
 def LSTM_model(train_dataset, test_dataset, encoder):
+    # LSTM model with 2 BiLSTM layers, an attention layer, and a dense layer with softmax activation for multiclass classification (9 different labels)
     model = Sequential([
             encoder,
             Embedding(len(encoder.get_vocabulary()), 64, mask_zero=True),

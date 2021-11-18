@@ -3,14 +3,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import numpy as np
-import re
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, Conv1D, MaxPooling1D, Embedding
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras import layers, losses, preprocessing
+from tensorflow.keras.layers import Dense, Dropout, Conv1D, MaxPooling1D, Embedding
 from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
-import tensorflow_text as tf_text
 from attention import Attention
 
 BATCH_SIZE = 128
@@ -19,17 +15,19 @@ VOCAB_SIZE = 10000
 def generate_data():
     data = pd.read_excel('../dataset/dataset.xlsx')
     df = pd.DataFrame(columns=['Text', 'Label'])
+    # filters the NCM of 9 specific types of products
     data = data[(
-        data['prod_ncm'] == 30049099) | #Cremes de beleza, cremes nutritivos e loções tônicas
-        (data['prod_ncm'] == 30049069) | #Desodorantes corporais e antiperspirantes, líquidos
-        (data['prod_ncm'] == 27101259) | #Outros produtos de beleza ou de maquilagem preparados e preparações para conservação ou cuidados da pele
-        (data['prod_ncm'] == 27101921) | #Xampus para o cabelo
-        (data['prod_ncm'] == 30049079) | #Produtos de maquilagem para os lábios
-        (data['prod_ncm'] == 87089990) | #Águas-de-colônia
-        (data['prod_ncm'] == 90211020) | #Sombra, delineador, lápis para sobrancelhas e rímel
-        (data['prod_ncm'] == 39174090) | #Sabões de toucador em barras, pedaços ou figuras moldados
-        (data['prod_ncm'] == 28044000)] #Preparações para manicuros e pedicuros
+         data['prod_ncm'] == 30049099) | # Cremes de beleza, cremes nutritivos e loções tônicas
+        (data['prod_ncm'] == 30049069) | # Desodorantes corporais e antiperspirantes, líquidos
+        (data['prod_ncm'] == 27101259) | # Outros produtos de beleza ou de maquilagem preparados e preparações para conservação ou cuidados da pele
+        (data['prod_ncm'] == 27101921) | # Xampus para o cabelo
+        (data['prod_ncm'] == 30049079) | # Produtos de maquilagem para os lábios
+        (data['prod_ncm'] == 87089990) | # Águas-de-colônia
+        (data['prod_ncm'] == 90211020) | # Sombra, delineador, lápis para sobrancelhas e rímel
+        (data['prod_ncm'] == 39174090) | # Sabões de toucador em barras, pedaços ou figuras moldados
+        (data['prod_ncm'] == 28044000) ] # Preparações para manicuros e pedicuros
     df['Text']  = data['prod_desc']
+    # replaces the NCM code for a label
     df['Label'] = data['prod_ncm'].replace({
         30049099: 0, 
         30049069: 1, 
@@ -40,7 +38,9 @@ def generate_data():
         90211020: 6,
         39174090: 7,
         28044000: 8})
+    # data cleaning 
     df['Text'] = df['Text'].str.lower().replace('\W',' ', regex=True)
+    # splits the data for text and training
     train = pd.DataFrame(columns=['Text', 'Label'])
     test = pd.DataFrame(columns=['Text', 'Label'])
     train['Text'], test['Text'], train['Label'], test['Label'] = train_test_split(df['Text'], df['Label'], random_state=42, shuffle=True, test_size=0.2)
@@ -63,6 +63,7 @@ def plot_graphs(history, metric):
 
 
 def CNN_model(train_dataset, test_dataset, encoder):
+    # CNN model with 2 convolutional 1D layers (for text data), an attention layer, and a dense layer with softmax activation for multiclass classification (9 different labels)
     model = Sequential([
             encoder,
             Embedding(len(encoder.get_vocabulary()), 128, mask_zero=True),
@@ -112,6 +113,7 @@ def main():
     encoder.adapt(train_dataset.map(lambda text, label: text))
     vocab = np.array(encoder.get_vocabulary())
     #print(vocab[:20])
+    
     CNN_model(train_dataset, test_dataset, encoder)
 
 if __name__ == '__main__':
